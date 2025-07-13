@@ -1,0 +1,24 @@
+# Go build artifacts
+bin/
+*.exe
+*.test
+*.out
+
+# Dependency directories
+vendor/
+
+# Editor and IDE settings
+.vscode/
+.idea/
+*.swp
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Generated code
+**/zz_generated.*
