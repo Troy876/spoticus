@@ -1,5 +1,7 @@
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/flacatus/mapt-operator v0.0.0-20250704090407-825655d978fc h1:GKPkxVqotZf3JNHBu4DzQaFh8xvT2GCk69BIsAuc20k=
+github.com/flacatus/mapt-operator v0.0.0-20250704090407-825655d978fc/go.mod h1:KEGIWd3WEJMTNj+5GP19N5dXZiDfqRJiiqg6J4tMszI=
 github.com/go-test/deep v1.1.1 h1:0r/53hagsehfO4bzD2Pgr/+RgHqhmf+k1Bpse2cTu1U=
 github.com/go-test/deep v1.1.1/go.mod h1:5C2ZWiW0ErCdrYzpqxLbTX7MG14M9iiw8DgHncVwcsE=
 github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg=

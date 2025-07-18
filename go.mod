@@ -6,4 +6,7 @@ toolchain go1.24.5
 
 require github.com/slack-go/slack v0.17.3
 
-require github.com/gorilla/websocket v1.5.3 // indirect
+require (
+	github.com/flacatus/mapt-operator v0.0.0-20250704090407-825655d978fc // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
+)
