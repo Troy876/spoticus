@@ -5,8 +5,16 @@ import (
 	"log"
 	"strings"
 
+	maptApi "github.com/flacatus/mapt-operator/api/v1alpha1"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 const launchUsage = "" +
@@ -31,6 +39,46 @@ const launchUsage = "" +
 	"• `xlarge` — 32 CPUs / 128 GB RAM\n\n" +
 	"💰 *⚡ Spot Instances (Cost Optimization)*:\n" +
 	"All clusters are provisioned using **cloud spot instances** for maximum cost-efficiency.\n"
+
+var (
+	scheme = runtime.NewScheme()
+)
+
+func init() {
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(maptApi.AddToScheme(scheme))
+}
+
+type KubernetesClients struct {
+	KubeClient    *kubernetes.Clientset
+	CrClient      *crclient.Client
+	DynamicClient dynamic.Interface
+}
+
+func GetKubernetesClient() (*KubernetesClients, error) {
+	cfg, err := config.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	client, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	crClient, err := crclient.New(cfg, crclient.Options{
+		Scheme: scheme,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &KubernetesClients{KubeClient: client, CrClient: &crClient, DynamicClient: dynamicClient}, nil
+}
 
 // supportedClusterTypes defines the valid cluster types that can be launched.
 // Currently supports Kubernetes and OpenShift.
@@ -83,7 +131,9 @@ func HandleLaunch(api *slack.Client, event *slackevents.MessageEvent, args []str
 		return
 	}
 
-	clusterType := strings.ToLower(args[0])
+	client, err := GetKubernetesClient()
+	client.KubeClient().
+		clusterType := strings.ToLower(args[0])
 	size := strings.ToLower(args[1])
 
 	// Validate cluster type
