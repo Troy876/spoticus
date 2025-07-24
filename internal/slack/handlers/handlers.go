@@ -28,6 +28,11 @@ var commandRegistry = map[string]Command{
 		Usage:       "`launch <cluster_type> <size>`\nExample: `launch kubernetes large`",
 		Handler:     commands.HandleLaunch,
 	},
+	"list": {
+		Description: "List all mapt clusters.",
+		Usage:       "`list`",
+		Handler:     commands.HandleList,
+	},
 	// Future command examples:
 	// "done": {
 	// 	Description: "Terminate the running cluster.",

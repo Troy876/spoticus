@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -8,7 +9,9 @@ import (
 	maptApi "github.com/flacatus/mapt-operator/api/v1alpha1"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -51,7 +54,7 @@ func init() {
 
 type KubernetesClients struct {
 	KubeClient    *kubernetes.Clientset
-	CrClient      *crclient.Client
+	CrClient      crclient.Client
 	DynamicClient dynamic.Interface
 }
 
@@ -77,7 +80,7 @@ func GetKubernetesClient() (*KubernetesClients, error) {
 		return nil, err
 	}
 
-	return &KubernetesClients{KubeClient: client, CrClient: &crClient, DynamicClient: dynamicClient}, nil
+	return &KubernetesClients{KubeClient: client, CrClient: crClient, DynamicClient: dynamicClient}, nil
 }
 
 // supportedClusterTypes defines the valid cluster types that can be launched.
@@ -126,14 +129,17 @@ var supportedSizes = map[string]SizeSpec{
 // The function logs the action for auditing/debugging and ensures the user
 // receives structured output with specs.
 func HandleLaunch(api *slack.Client, event *slackevents.MessageEvent, args []string) {
+	var maptList *maptApi.KindList
 	if len(args) < 2 {
 		respondError(api, event.Channel, "❌ Missing arguments.\n\n"+launchUsage)
 		return
 	}
 
 	client, err := GetKubernetesClient()
-	client.KubeClient().
-		clusterType := strings.ToLower(args[0])
+	log.Printf("Error getting kubernetes clinet: %v", err)
+	maptErr := client.CrClient.List(context.TODO(), maptList)
+	log.Printf("Error getting mapt list: %v", maptErr)
+	clusterType := strings.ToLower(args[0])
 	size := strings.ToLower(args[1])
 
 	// Validate cluster type
@@ -160,6 +166,110 @@ func HandleLaunch(api *slack.Client, event *slackevents.MessageEvent, args []str
 	// Post the result back to Slack
 	if _, _, err := api.PostMessage(event.Channel, slack.MsgOptionText(message, false)); err != nil {
 		log.Printf("Error posting launch message: %v", err)
+	}
+}
+
+func HandleList(api *slack.Client, event *slackevents.MessageEvent, args []string) {
+	// Get Kubernetes client
+	client, err := GetKubernetesClient()
+	if err != nil {
+		log.Printf("Error getting kubernetes client: %v", err)
+		respondError(api, event.Channel, "❌ Failed to connect to Kubernetes cluster")
+		return
+	}
+
+	// List all MAPT Kind resources
+	var kindsList maptApi.KindList
+	err = client.CrClient.List(context.TODO(), &kindsList)
+	if err != nil {
+		log.Printf("Error listing MAPT kind clusters: %v", err)
+		respondError(api, event.Channel, "❌ Failed to retrieve cluster list")
+		return
+	}
+
+	// List all MAPT OpenShift resources using unstructured approach
+	openshiftsList := &unstructured.UnstructuredList{}
+	openshiftsList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "mapt.redhat.com",
+		Version: "v1alpha1",
+		Kind:    "OpenshiftList",
+	})
+	err = client.CrClient.List(context.TODO(), openshiftsList)
+	if err != nil {
+		log.Printf("Error listing MAPT openshift clusters: %v", err)
+		respondError(api, event.Channel, "❌ Failed to retrieve cluster list")
+		return
+	}
+
+	totalClusters := len(kindsList.Items) + len(openshiftsList.Items)
+
+	// If no clusters found
+	if totalClusters == 0 {
+		message := "📋 *Cluster List*\n\nNo MAPT clusters currently running."
+		if _, _, err := api.PostMessage(event.Channel, slack.MsgOptionText(message, false)); err != nil {
+			log.Printf("Error posting list message: %v", err)
+		}
+		return
+	}
+
+	// Format the cluster list
+	var message strings.Builder
+	message.WriteString(fmt.Sprintf("📋 *Cluster List* (%d cluster%s)\n\n",
+		totalClusters,
+		func() string {
+			if totalClusters == 1 {
+				return ""
+			} else {
+				return "s"
+			}
+		}()))
+
+	clusterIndex := 0
+
+	// Add Kind clusters
+	for _, cluster := range kindsList.Items {
+		message.WriteString(fmt.Sprintf(
+			"🔸 *%s* (Kubernetes)\n"+
+				"   • Namespace: %s\n"+
+				"   • Created: %s\n",
+			cluster.Name,
+			cluster.Namespace,
+			cluster.CreationTimestamp.Format("2006-01-02 15:04:05"),
+		))
+
+		if clusterIndex < totalClusters-1 {
+			message.WriteString("\n")
+		}
+		clusterIndex++
+	}
+
+	// Add OpenShift clusters
+	for _, cluster := range openshiftsList.Items {
+		name := cluster.GetName()
+		namespace := cluster.GetNamespace()
+		creationTime := cluster.GetCreationTimestamp().Format("2006-01-02 15:04:05")
+
+		message.WriteString(fmt.Sprintf(
+			"🔸 *%s* (OpenShift)\n"+
+				"   • Namespace: %s\n"+
+				"   • Created: %s\n",
+			name,
+			namespace,
+			creationTime,
+		))
+
+		if clusterIndex < totalClusters-1 {
+			message.WriteString("\n")
+		}
+		clusterIndex++
+	}
+
+	log.Printf("Listed %d MAPT clusters (%d kinds, %d openshifts) for user %s",
+		totalClusters, len(kindsList.Items), len(openshiftsList.Items), event.User)
+
+	// Post the result back to Slack
+	if _, _, err := api.PostMessage(event.Channel, slack.MsgOptionText(message.String(), false)); err != nil {
+		log.Printf("Error posting list message: %v", err)
 	}
 }
 
